@@ -1,0 +1,91 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'SSM IAM Roles for Multi-VPC Infrastructure'
+
+# ----------------------------------------------------------------------------
+# Template created by Mark Glynn
+# IAM roles and instance profiles for SSM access
+# These can be used for EC2 instances that need to be managed by SSM
+# ----------------------------------------------------------------------------
+
+Parameters:
+  AlphaVPCID:
+    Description: ID of the Alpha VPC
+    Type: AWS::EC2::VPC::Id
+
+  BravoVPCID:
+    Description: ID of the Bravo VPC
+    Type: AWS::EC2::VPC::Id
+
+Resources:
+  # IAM Role and Instance Profile for SSM
+  SSMInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+      Policies:
+        - PolicyName: SSMAdditionalPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - "ssm:UpdateInstanceInformation"
+                  - "ssmmessages:*"
+                  - "ec2messages:*"
+                  - "ssm:DescribeAssociation"
+                  - "ssm:GetDeployablePatchSnapshotForInstance"
+                  - "ssm:GetDocument"
+                  - "ssm:DescribeDocument"
+                  - "ssm:GetManifest"
+                  - "ssm:GetParameter"
+                  - "ssm:GetParameters"
+                  - "ssm:ListAssociations"
+                  - "ssm:ListInstanceAssociations"
+                  - "ssm:PutInventory"
+                  - "ssm:PutComplianceItems"
+                  - "ssm:PutConfigurePackageResult"
+                  - "ssm:UpdateAssociationStatus"
+                  - "ssm:UpdateInstanceAssociationStatus"
+                  - "ssm:UpdateInstanceInformation"
+                Resource: "*"
+      Tags:
+        - Key: Name
+          Value: SSM-Instance-Role
+        - Key: AlphaVPC
+          Value: !Ref AlphaVPCID
+        - Key: BravoVPC
+          Value: !Ref BravoVPCID
+
+  SSMInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+        - !Ref SSMInstanceRole
+
+Outputs:
+  SSMRoleArn:
+    Description: ARN of the SSM Instance Role
+    Value: !GetAtt SSMInstanceRole.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SSMRoleArn
+
+  SSMInstanceProfileArn:
+    Description: ARN of the SSM Instance Profile
+    Value: !GetAtt SSMInstanceProfile.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-SSMInstanceProfileArn
+  
+  SSMInstanceProfileName:
+    Description: Name of the SSM Instance Profile
+    Value: !Ref SSMInstanceProfile
+    Export:
+      Name: !Sub ${AWS::StackName}-SSMInstanceProfileName 

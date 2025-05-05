@@ -1,0 +1,236 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'VPC Endpoints for Alpha-Bravo Multi-VPC Infrastructure'
+
+# ----------------------------------------------------------------------------
+# Template created by Mark Glynn
+# VPC Endpoints for Multi-VPC infrastructure
+# Includes endpoints for SSM, SSM Messages, EC2 Messages, and S3
+# ----------------------------------------------------------------------------
+
+Parameters:
+  AlphaVPCID:
+    Description: ID of the Alpha VPC
+    Type: String
+
+  BravoVPCID:
+    Description: ID of the Bravo VPC
+    Type: String
+
+  AlphaPrivateSubnet1ID:
+    Description: ID of the first private subnet in Alpha VPC
+    Type: AWS::EC2::Subnet::Id
+
+  AlphaPrivateSubnet2ID:
+    Description: ID of the second private subnet in Alpha VPC
+    Type: AWS::EC2::Subnet::Id
+
+  AlphaPrivateSubnet3ID:
+    Description: ID of the third private subnet in Alpha VPC
+    Type: AWS::EC2::Subnet::Id
+
+  BravoPrivateSubnet1ID:
+    Description: ID of the first private subnet in Bravo VPC
+    Type: AWS::EC2::Subnet::Id
+
+  BravoPrivateSubnet2ID:
+    Description: ID of the second private subnet in Bravo VPC
+    Type: AWS::EC2::Subnet::Id
+
+  BravoPrivateSubnet3ID:
+    Description: ID of the third private subnet in Bravo VPC
+    Type: AWS::EC2::Subnet::Id
+
+  AlphaPrivateRouteTableID:
+    Description: ID of the private route table in Alpha VPC
+    Type: String
+
+  BravoPrivateRouteTableID:
+    Description: ID of the private route table in Bravo VPC
+    Type: String
+
+Resources:
+  # Security Groups for VPC Endpoints
+  AlphaEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for VPC Endpoints in Alpha
+      VpcId: !Ref AlphaVPCID
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 10.0.0.0/8
+          Description: Allow HTTPS from 10.0.0.0/8
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTPS outbound
+      Tags:
+        - Key: Name
+          Value: Alpha-Endpoint-SG
+
+  BravoEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security group for VPC Endpoints in Bravo
+      VpcId: !Ref BravoVPCID
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 10.0.0.0/8
+          Description: Allow HTTPS from 10.0.0.0/8
+      SecurityGroupEgress:
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: Allow HTTPS outbound
+      Tags:
+        - Key: Name
+          Value: Bravo-Endpoint-SG
+
+  # SSM Endpoints for Alpha
+  AlphaSSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref AlphaVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref AlphaPrivateSubnet1ID
+        - !Ref AlphaPrivateSubnet2ID
+        - !Ref AlphaPrivateSubnet3ID
+      SecurityGroupIds: 
+        - !Ref AlphaEndpointSecurityGroup
+
+  AlphaSSMMessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref AlphaVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref AlphaPrivateSubnet1ID
+        - !Ref AlphaPrivateSubnet2ID
+        - !Ref AlphaPrivateSubnet3ID
+      SecurityGroupIds:
+        - !Ref AlphaEndpointSecurityGroup
+
+  AlphaEC2MessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref AlphaVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref AlphaPrivateSubnet1ID
+        - !Ref AlphaPrivateSubnet2ID
+        - !Ref AlphaPrivateSubnet3ID
+      SecurityGroupIds:
+        - !Ref AlphaEndpointSecurityGroup
+
+  # S3 Gateway Endpoint for Alpha
+  AlphaS3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref AlphaVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref AlphaPrivateRouteTableID
+
+  # SSM Endpoints for Bravo
+  BravoSSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BravoVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssm
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref BravoPrivateSubnet1ID
+        - !Ref BravoPrivateSubnet2ID
+        - !Ref BravoPrivateSubnet3ID
+      SecurityGroupIds:
+        - !Ref BravoEndpointSecurityGroup
+
+  BravoSSMMessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BravoVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ssmmessages
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref BravoPrivateSubnet1ID
+        - !Ref BravoPrivateSubnet2ID
+        - !Ref BravoPrivateSubnet3ID
+      SecurityGroupIds:
+        - !Ref BravoEndpointSecurityGroup
+
+  BravoEC2MessagesEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BravoVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.ec2messages
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds: 
+        - !Ref BravoPrivateSubnet1ID
+        - !Ref BravoPrivateSubnet2ID
+        - !Ref BravoPrivateSubnet3ID
+      SecurityGroupIds:
+        - !Ref BravoEndpointSecurityGroup
+
+  # S3 Gateway Endpoint for Bravo
+  BravoS3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      VpcId: !Ref BravoVPCID
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      RouteTableIds:
+        - !Ref BravoPrivateRouteTableID
+
+Outputs:
+  AlphaSSMEndpointID:
+    Description: ID of the Alpha SSM endpoint
+    Value: !Ref AlphaSSMEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-AlphaSSMEndpoint
+
+  AlphaEC2MessagesEndpointID:
+    Description: ID of the Alpha EC2Messages endpoint
+    Value: !Ref AlphaEC2MessagesEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-AlphaEC2MessagesEndpoint
+
+  AlphaSSMMessagesEndpointID:
+    Description: ID of the Alpha SSMMessages endpoint
+    Value: !Ref AlphaSSMMessagesEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-AlphaSSMMessagesEndpoint
+
+  BravoSSMEndpointID:
+    Description: ID of the Bravo SSM endpoint
+    Value: !Ref BravoSSMEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-BravoSSMEndpoint
+
+  BravoEC2MessagesEndpointID:
+    Description: ID of the Bravo EC2Messages endpoint
+    Value: !Ref BravoEC2MessagesEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-BravoEC2MessagesEndpoint
+
+  BravoSSMMessagesEndpointID:
+    Description: ID of the Bravo SSMMessages endpoint
+    Value: !Ref BravoSSMMessagesEndpoint
+    Export:
+      Name: !Sub ${AWS::StackName}-BravoSSMMessagesEndpoint 

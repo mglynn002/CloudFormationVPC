@@ -1,0 +1,763 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Networking Stack for Alpha-Bravo Multi-VPC Infrastructure
+
+# ----------------------------------------------------------------------------
+# Template created by Mark Glynn
+# Networking components for Multi-VPC infrastructure 
+# Includes VPCs, Subnets, Route Tables, Transit Gateway, and NAT Gateways
+# ----------------------------------------------------------------------------
+
+Parameters:
+  # VPC CIDR Blocks
+  AlphaVPCCIDR:
+    Description: CIDR block for Alpha VPC
+    Type: String
+    Default: 10.0.0.0/16
+
+  BravoVPCCIDR:
+    Description: CIDR block for Bravo VPC
+    Type: String
+    Default: 10.1.0.0/16
+
+  # Public Subnet CIDR Blocks for Alpha
+  AlphaPublicSubnet1CIDR:
+    Description: CIDR block for Public Subnet 1 in Alpha VPC
+    Type: String
+    Default: 10.0.0.0/24
+
+  AlphaPublicSubnet2CIDR:
+    Description: CIDR block for Public Subnet 2 in Alpha VPC
+    Type: String
+    Default: 10.0.1.0/24
+
+  AlphaPublicSubnet3CIDR:
+    Description: CIDR block for Public Subnet 3 in Alpha VPC
+    Type: String
+    Default: 10.0.2.0/24
+
+  # Private Subnet CIDR Blocks for Alpha
+  AlphaPrivateSubnet1CIDR:
+    Description: CIDR block for Private Subnet 1 in Alpha VPC
+    Type: String
+    Default: 10.0.3.0/24
+
+  AlphaPrivateSubnet2CIDR:
+    Description: CIDR block for Private Subnet 2 in Alpha VPC
+    Type: String
+    Default: 10.0.4.0/24
+
+  AlphaPrivateSubnet3CIDR:
+    Description: CIDR block for Private Subnet 3 in Alpha VPC
+    Type: String
+    Default: 10.0.5.0/24
+
+  # Public Subnet CIDR Blocks for Bravo
+  BravoPublicSubnet1CIDR:
+    Description: CIDR block for Public Subnet 1 in Bravo VPC
+    Type: String
+    Default: 10.1.0.0/24
+
+  BravoPublicSubnet2CIDR:
+    Description: CIDR block for Public Subnet 2 in Bravo VPC
+    Type: String
+    Default: 10.1.1.0/24
+
+  BravoPublicSubnet3CIDR:
+    Description: CIDR block for Public Subnet 3 in Bravo VPC
+    Type: String
+    Default: 10.1.2.0/24
+
+  # Private Subnet CIDR Blocks for Bravo
+  BravoPrivateSubnet1CIDR:
+    Description: CIDR block for Private Subnet 1 in Bravo VPC
+    Type: String
+    Default: 10.1.3.0/24
+
+  BravoPrivateSubnet2CIDR:
+    Description: CIDR block for Private Subnet 2 in Bravo VPC
+    Type: String
+    Default: 10.1.4.0/24
+
+  BravoPrivateSubnet3CIDR:
+    Description: CIDR block for Private Subnet 3 in Bravo VPC
+    Type: String
+    Default: 10.1.5.0/24
+
+  AvailabilityZone1:
+    Description: First Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a
+
+  AvailabilityZone2:
+    Description: Second Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1b
+
+  AvailabilityZone3:
+    Description: Third Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1c
+
+Resources:
+  # VPCs
+  AlphaVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref AlphaVPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Alpha
+
+  BravoVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref BravoVPCCIDR
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: Bravo
+
+  # IAM Role for VPC Flow Logs
+  VPCFlowLogsRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: vpc-flow-logs.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: VPCFlowLogsPermissions
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - 'logs:CreateLogGroup'
+                  - 'logs:CreateLogStream'
+                  - 'logs:PutLogEvents'
+                  - 'logs:DescribeLogGroups'
+                  - 'logs:DescribeLogStreams'
+                Resource: '*'
+      Tags:
+        - Key: Name
+          Value: Alpha-Bravo-VPC-FlowLogs-Role
+        - Key: Environment
+          Value: Lab
+
+  # VPC Flow Logs CloudWatch Log Groups
+  AlphaVPCFlowLogsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/vpc/alpha-${AWS::StackName}'
+      RetentionInDays: 1
+      Tags:
+        - Key: Name
+          Value: Alpha-VPC-FlowLogs
+        - Key: Environment
+          Value: Lab
+
+  BravoVPCFlowLogsLogGroup:
+    Type: AWS::Logs::LogGroup
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      LogGroupName: !Sub '/vpc/bravo-${AWS::StackName}'
+      RetentionInDays: 1
+      Tags:
+        - Key: Name
+          Value: Bravo-VPC-FlowLogs
+        - Key: Environment
+          Value: Lab
+
+  # VPC Flow Logs
+  AlphaVPCFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
+      LogGroupName: !Ref AlphaVPCFlowLogsLogGroup
+      ResourceId: !Ref AlphaVPC
+      ResourceType: VPC
+      TrafficType: ALL
+      Tags:
+        - Key: Name
+          Value: Alpha-VPC-FlowLog
+        - Key: Environment
+          Value: Lab
+
+  BravoVPCFlowLog:
+    Type: AWS::EC2::FlowLog
+    Properties:
+      DeliverLogsPermissionArn: !GetAtt VPCFlowLogsRole.Arn
+      LogGroupName: !Ref BravoVPCFlowLogsLogGroup
+      ResourceId: !Ref BravoVPC
+      ResourceType: VPC
+      TrafficType: ALL
+      Tags:
+        - Key: Name
+          Value: Bravo-VPC-FlowLog
+        - Key: Environment
+          Value: Lab
+
+  # DHCP Options
+  AlphaBravoDHCPOptions:
+    Type: AWS::EC2::DHCPOptions
+    Properties:
+      DomainNameServers:
+        - AmazonProvidedDNS
+      Tags:
+        - Key: Name
+          Value: Alpha-Bravo-DHCP-Options
+
+  # DHCP Options Associations
+  AlphaDHCPOptionsAssociation:
+    Type: AWS::EC2::VPCDHCPOptionsAssociation
+    Properties:
+      VpcId: !Ref AlphaVPC
+      DhcpOptionsId: !Ref AlphaBravoDHCPOptions
+
+  BravoDHCPOptionsAssociation:
+    Type: AWS::EC2::VPCDHCPOptionsAssociation
+    Properties:
+      VpcId: !Ref BravoVPC
+      DhcpOptionsId: !Ref AlphaBravoDHCPOptions
+
+  # Internet Gateways
+  AlphaInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Alpha-IGW
+
+  BravoInternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: Bravo-IGW
+
+  # Internet Gateway Attachments
+  AlphaIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref AlphaVPC
+      InternetGatewayId: !Ref AlphaInternetGateway
+
+  BravoIGWAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref BravoVPC
+      InternetGatewayId: !Ref BravoInternetGateway
+
+  # Subnets for Alpha VPC
+  # Public Subnets
+  AlphaPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AlphaVPC
+      CidrBlock: !Ref AlphaPublicSubnet1CIDR
+      AvailabilityZone: !Ref AvailabilityZone1
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Alpha-Public-Subnet1
+
+  AlphaPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AlphaVPC
+      CidrBlock: !Ref AlphaPublicSubnet2CIDR
+      AvailabilityZone: !Ref AvailabilityZone2
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Alpha-Public-Subnet2
+
+  AlphaPublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AlphaVPC
+      CidrBlock: !Ref AlphaPublicSubnet3CIDR
+      AvailabilityZone: !Ref AvailabilityZone3
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Alpha-Public-Subnet3
+
+  # Private Subnets
+  AlphaPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AlphaVPC
+      CidrBlock: !Ref AlphaPrivateSubnet1CIDR
+      AvailabilityZone: !Ref AvailabilityZone1
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Alpha-Private-Subnet1
+
+  AlphaPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AlphaVPC
+      CidrBlock: !Ref AlphaPrivateSubnet2CIDR
+      AvailabilityZone: !Ref AvailabilityZone2
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Alpha-Private-Subnet2
+
+  AlphaPrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref AlphaVPC
+      CidrBlock: !Ref AlphaPrivateSubnet3CIDR
+      AvailabilityZone: !Ref AvailabilityZone3
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Alpha-Private-Subnet3
+
+  # Subnets for Bravo VPC
+  # Public Subnets
+  BravoPublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BravoVPC
+      CidrBlock: !Ref BravoPublicSubnet1CIDR
+      AvailabilityZone: !Ref AvailabilityZone1
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Bravo-Public-Subnet1
+
+  BravoPublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BravoVPC
+      CidrBlock: !Ref BravoPublicSubnet2CIDR
+      AvailabilityZone: !Ref AvailabilityZone2
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Bravo-Public-Subnet2
+
+  BravoPublicSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BravoVPC
+      CidrBlock: !Ref BravoPublicSubnet3CIDR
+      AvailabilityZone: !Ref AvailabilityZone3
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: Bravo-Public-Subnet3
+
+  # Private Subnets
+  BravoPrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BravoVPC
+      CidrBlock: !Ref BravoPrivateSubnet1CIDR
+      AvailabilityZone: !Ref AvailabilityZone1
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Bravo-Private-Subnet1
+
+  BravoPrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BravoVPC
+      CidrBlock: !Ref BravoPrivateSubnet2CIDR
+      AvailabilityZone: !Ref AvailabilityZone2
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Bravo-Private-Subnet2
+
+  BravoPrivateSubnet3:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref BravoVPC
+      CidrBlock: !Ref BravoPrivateSubnet3CIDR
+      AvailabilityZone: !Ref AvailabilityZone3
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: Bravo-Private-Subnet3
+
+  # NAT Gateways and EIPs for Alpha
+  AlphaNatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: AlphaIGWAttachment
+    Properties:
+      Domain: vpc
+
+  AlphaNatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt AlphaNatGateway1EIP.AllocationId
+      SubnetId: !Ref AlphaPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: Alpha-NATGW
+
+  # NAT Gateways and EIPs for Bravo
+  BravoNatGateway1EIP:
+    Type: AWS::EC2::EIP
+    DependsOn: BravoIGWAttachment
+    Properties:
+      Domain: vpc
+
+  BravoNatGateway1:
+    Type: AWS::EC2::NatGateway
+    Properties:
+      AllocationId: !GetAtt BravoNatGateway1EIP.AllocationId
+      SubnetId: !Ref BravoPublicSubnet1
+      Tags:
+        - Key: Name
+          Value: Bravo-NATGW
+
+  # Route Tables for Alpha VPC
+  AlphaPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AlphaVPC
+      Tags:
+        - Key: Name
+          Value: Alpha-Public-RT
+
+  AlphaPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref AlphaVPC
+      Tags:
+        - Key: Name
+          Value: Alpha-Private-RT
+
+  # Route Tables for Bravo VPC
+  BravoPublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BravoVPC
+      Tags:
+        - Key: Name
+          Value: Bravo-Public-RT
+
+  BravoPrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref BravoVPC
+      Tags:
+        - Key: Name
+          Value: Bravo-Private-RT
+
+  # Public Routes for Alpha
+  AlphaPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: AlphaIGWAttachment
+    Properties:
+      RouteTableId: !Ref AlphaPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref AlphaInternetGateway
+
+  # Public Routes for Bravo
+  BravoPublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: BravoIGWAttachment
+    Properties:
+      RouteTableId: !Ref BravoPublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref BravoInternetGateway
+
+  # Private Routes for Alpha through NAT Gateway
+  AlphaPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref AlphaPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref AlphaNatGateway1
+
+  # Private Routes for Bravo through NAT Gateway
+  BravoPrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref BravoPrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref BravoNatGateway1
+
+  # Route Table Associations for Alpha
+  AlphaPublicSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AlphaPublicSubnet1
+      RouteTableId: !Ref AlphaPublicRouteTable
+
+  AlphaPublicSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AlphaPublicSubnet2
+      RouteTableId: !Ref AlphaPublicRouteTable
+
+  AlphaPublicSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AlphaPublicSubnet3
+      RouteTableId: !Ref AlphaPublicRouteTable
+
+  AlphaPrivateSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AlphaPrivateSubnet1
+      RouteTableId: !Ref AlphaPrivateRouteTable
+
+  AlphaPrivateSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AlphaPrivateSubnet2
+      RouteTableId: !Ref AlphaPrivateRouteTable
+
+  AlphaPrivateSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref AlphaPrivateSubnet3
+      RouteTableId: !Ref AlphaPrivateRouteTable
+
+  # Route Table Associations for Bravo
+  BravoPublicSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BravoPublicSubnet1
+      RouteTableId: !Ref BravoPublicRouteTable
+
+  BravoPublicSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BravoPublicSubnet2
+      RouteTableId: !Ref BravoPublicRouteTable
+
+  BravoPublicSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BravoPublicSubnet3
+      RouteTableId: !Ref BravoPublicRouteTable
+
+  BravoPrivateSubnet1RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BravoPrivateSubnet1
+      RouteTableId: !Ref BravoPrivateRouteTable
+
+  BravoPrivateSubnet2RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BravoPrivateSubnet2
+      RouteTableId: !Ref BravoPrivateRouteTable
+
+  BravoPrivateSubnet3RTAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref BravoPrivateSubnet3
+      RouteTableId: !Ref BravoPrivateRouteTable
+
+  # Transit Gateway
+  TransitGateway:
+    Type: AWS::EC2::TransitGateway
+    Properties:
+      Description: Transit Gateway for inter-VPC communication
+      AutoAcceptSharedAttachments: enable
+      DefaultRouteTableAssociation: enable
+      DefaultRouteTablePropagation: enable
+      DnsSupport: enable
+      VpnEcmpSupport: enable
+      MulticastSupport: enable
+      TransitGatewayCidrBlocks:
+        - 10.0.0.0/8
+      Tags:
+        - Key: Name
+          Value: Alpha-Bravo-TGW
+
+  # Transit Gateway Attachments
+  AlphaTGWAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref AlphaVPC
+      SubnetIds:
+        - !Ref AlphaPrivateSubnet1
+        - !Ref AlphaPrivateSubnet2
+        - !Ref AlphaPrivateSubnet3
+      Options:
+        ApplianceModeSupport: enable
+      Tags:
+        - Key: Name
+          Value: Alpha-TGW-Attachment
+
+  BravoTGWAttachment:
+    Type: AWS::EC2::TransitGatewayAttachment
+    Properties:
+      TransitGatewayId: !Ref TransitGateway
+      VpcId: !Ref BravoVPC
+      SubnetIds:
+        - !Ref BravoPrivateSubnet1
+        - !Ref BravoPrivateSubnet2
+        - !Ref BravoPrivateSubnet3
+      Options:
+        ApplianceModeSupport: enable
+      Tags:
+        - Key: Name
+          Value: Bravo-TGW-Attachment
+
+  # Routes to Transit Gateway
+  AlphaPrivateRouteToTGW:
+    Type: AWS::EC2::Route
+    DependsOn: AlphaTGWAttachment
+    Properties:
+      RouteTableId: !Ref AlphaPrivateRouteTable
+      DestinationCidrBlock: !Ref BravoVPCCIDR
+      TransitGatewayId: !Ref TransitGateway
+
+  BravoPrivateRouteToTGW:
+    Type: AWS::EC2::Route
+    DependsOn: BravoTGWAttachment
+    Properties:
+      RouteTableId: !Ref BravoPrivateRouteTable
+      DestinationCidrBlock: !Ref AlphaVPCCIDR
+      TransitGatewayId: !Ref TransitGateway
+
+Outputs:
+  # VPC Outputs
+  AlphaVPCID:
+    Description: ID of the Alpha VPC
+    Value: !Ref AlphaVPC
+
+  BravoVPCID:
+    Description: ID of the Bravo VPC
+    Value: !Ref BravoVPC
+
+  # VPC Flow Logs Outputs
+  AlphaVPCFlowLogID:
+    Description: ID of the Alpha VPC Flow Log
+    Value: !Ref AlphaVPCFlowLog
+    Export:
+      Name: !Sub "${AWS::StackName}-AlphaVPCFlowLogID"
+
+  BravoVPCFlowLogID:
+    Description: ID of the Bravo VPC Flow Log
+    Value: !Ref BravoVPCFlowLog
+    Export:
+      Name: !Sub "${AWS::StackName}-BravoVPCFlowLogID"
+
+  AlphaVPCFlowLogsLogGroupARN:
+    Description: ARN of the Alpha VPC Flow Logs Log Group
+    Value: !GetAtt AlphaVPCFlowLogsLogGroup.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-AlphaFlowLogsLogGroupARN"
+
+  BravoVPCFlowLogsLogGroupARN:
+    Description: ARN of the Bravo VPC Flow Logs Log Group
+    Value: !GetAtt BravoVPCFlowLogsLogGroup.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-BravoFlowLogsLogGroupARN"
+
+  VPCFlowLogsRoleARN:
+    Description: ARN of the VPC Flow Logs IAM Role
+    Value: !GetAtt VPCFlowLogsRole.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-VPCFlowLogsRoleARN"
+
+  # Subnet Outputs for Alpha
+  AlphaPublicSubnet1ID:
+    Description: ID of the Alpha Public Subnet 1
+    Value: !Ref AlphaPublicSubnet1
+
+  AlphaPublicSubnet2ID:
+    Description: ID of the Alpha Public Subnet 2
+    Value: !Ref AlphaPublicSubnet2
+
+  AlphaPublicSubnet3ID:
+    Description: ID of the Alpha Public Subnet 3
+    Value: !Ref AlphaPublicSubnet3
+
+  AlphaPrivateSubnet1ID:
+    Description: ID of the Alpha Private Subnet 1
+    Value: !Ref AlphaPrivateSubnet1
+
+  AlphaPrivateSubnet2ID:
+    Description: ID of the Alpha Private Subnet 2
+    Value: !Ref AlphaPrivateSubnet2
+
+  AlphaPrivateSubnet3ID:
+    Description: ID of the Alpha Private Subnet 3
+    Value: !Ref AlphaPrivateSubnet3
+
+  # Subnet Outputs for Bravo
+  BravoPublicSubnet1ID:
+    Description: ID of the Bravo Public Subnet 1
+    Value: !Ref BravoPublicSubnet1
+
+  BravoPublicSubnet2ID:
+    Description: ID of the Bravo Public Subnet 2
+    Value: !Ref BravoPublicSubnet2
+
+  BravoPublicSubnet3ID:
+    Description: ID of the Bravo Public Subnet 3
+    Value: !Ref BravoPublicSubnet3
+
+  BravoPrivateSubnet1ID:
+    Description: ID of the Bravo Private Subnet 1
+    Value: !Ref BravoPrivateSubnet1
+
+  BravoPrivateSubnet2ID:
+    Description: ID of the Bravo Private Subnet 2
+    Value: !Ref BravoPrivateSubnet2
+
+  BravoPrivateSubnet3ID:
+    Description: ID of the Bravo Private Subnet 3
+    Value: !Ref BravoPrivateSubnet3
+
+  # Route Table Outputs
+  AlphaPublicRouteTableID:
+    Description: ID of the Alpha Public Route Table
+    Value: !Ref AlphaPublicRouteTable
+
+  AlphaPrivateRouteTableID:
+    Description: ID of the Alpha Private Route Table
+    Value: !Ref AlphaPrivateRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-AlphaPrivateRouteTableID"
+
+  BravoPublicRouteTableID:
+    Description: ID of the Bravo Public Route Table
+    Value: !Ref BravoPublicRouteTable
+
+  BravoPrivateRouteTableID:
+    Description: ID of the Bravo Private Route Table
+    Value: !Ref BravoPrivateRouteTable
+    Export:
+      Name: !Sub "${AWS::StackName}-BravoPrivateRouteTableID"
+
+  # NAT Gateway Outputs
+  AlphaNatGateway1ID:
+    Description: ID of the Alpha NAT Gateway
+    Value: !Ref AlphaNatGateway1
+
+  BravoNatGateway1ID:
+    Description: ID of the Bravo NAT Gateway
+    Value: !Ref BravoNatGateway1
+
+  # Transit Gateway ID
+  TransitGatewayID:
+    Description: ID of the Transit Gateway
+    Value: !Ref TransitGateway
+    Export:
+      Name: !Sub "${AWS::StackName}-TransitGatewayID"

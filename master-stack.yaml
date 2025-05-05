@@ -1,0 +1,293 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'Master Stack for Alpha-Bravo Multi-VPC Network Infrastructure'
+
+# ----------------------------------------------------------------------------
+# Template created by Mark Glynn
+# Multi-VPC infrastructure with Transit Gateway connectivity
+# This template deploys a complete network infrastructure with Alpha and Bravo VPCs
+# connected via AWS Transit Gateway
+# ----------------------------------------------------------------------------
+
+Parameters:
+  # VPC CIDR Blocks
+  AlphaVPCCIDR:
+    Description: CIDR block for Alpha VPC
+    Type: String
+    Default: 10.0.0.0/16
+
+  BravoVPCCIDR:
+    Description: CIDR block for Bravo VPC
+    Type: String
+    Default: 10.1.0.0/16
+
+  # Public Subnet CIDR Blocks for Alpha
+  AlphaPublicSubnet1CIDR:
+    Description: CIDR block for Public Subnet 1 in Alpha VPC
+    Type: String
+    Default: 10.0.0.0/24
+  
+  AlphaPublicSubnet2CIDR:
+    Description: CIDR block for Public Subnet 2 in Alpha VPC
+    Type: String
+    Default: 10.0.1.0/24
+  
+  AlphaPublicSubnet3CIDR:
+    Description: CIDR block for Public Subnet 3 in Alpha VPC
+    Type: String
+    Default: 10.0.2.0/24
+
+  # Private Subnet CIDR Blocks for Alpha
+  AlphaPrivateSubnet1CIDR:
+    Description: CIDR block for Private Subnet 1 in Alpha VPC
+    Type: String
+    Default: 10.0.3.0/24
+  
+  AlphaPrivateSubnet2CIDR:
+    Description: CIDR block for Private Subnet 2 in Alpha VPC
+    Type: String
+    Default: 10.0.4.0/24
+  
+  AlphaPrivateSubnet3CIDR:
+    Description: CIDR block for Private Subnet 3 in Alpha VPC
+    Type: String
+    Default: 10.0.5.0/24
+
+  # Public Subnet CIDR Blocks for Bravo
+  BravoPublicSubnet1CIDR:
+    Description: CIDR block for Public Subnet 1 in Bravo VPC
+    Type: String
+    Default: 10.1.0.0/24
+  
+  BravoPublicSubnet2CIDR:
+    Description: CIDR block for Public Subnet 2 in Bravo VPC
+    Type: String
+    Default: 10.1.1.0/24
+  
+  BravoPublicSubnet3CIDR:
+    Description: CIDR block for Public Subnet 3 in Bravo VPC
+    Type: String
+    Default: 10.1.2.0/24
+
+  # Private Subnet CIDR Blocks for Bravo
+  BravoPrivateSubnet1CIDR:
+    Description: CIDR block for Private Subnet 1 in Bravo VPC
+    Type: String
+    Default: 10.1.3.0/24
+  
+  BravoPrivateSubnet2CIDR:
+    Description: CIDR block for Private Subnet 2 in Bravo VPC
+    Type: String
+    Default: 10.1.4.0/24
+  
+  BravoPrivateSubnet3CIDR:
+    Description: CIDR block for Private Subnet 3 in Bravo VPC
+    Type: String
+    Default: 10.1.5.0/24
+
+  AvailabilityZone1:
+    Description: First Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1a
+
+  AvailabilityZone2:
+    Description: Second Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1b
+
+  AvailabilityZone3:
+    Description: Third Availability Zone
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-1c
+
+  TemplateBaseURL:
+    Description: S3 URL prefix where nested stack templates are stored
+    Type: String
+    Default: https://alpha-bravo-cloudformation-templates.s3.us-east-1.amazonaws.com/alpha-bravo-lab
+
+Resources:
+  NetworkingStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateBaseURL}/networking.yaml"
+      Parameters:
+        AlphaVPCCIDR: !Ref AlphaVPCCIDR
+        BravoVPCCIDR: !Ref BravoVPCCIDR
+        AlphaPublicSubnet1CIDR: !Ref AlphaPublicSubnet1CIDR
+        AlphaPublicSubnet2CIDR: !Ref AlphaPublicSubnet2CIDR
+        AlphaPublicSubnet3CIDR: !Ref AlphaPublicSubnet3CIDR
+        AlphaPrivateSubnet1CIDR: !Ref AlphaPrivateSubnet1CIDR
+        AlphaPrivateSubnet2CIDR: !Ref AlphaPrivateSubnet2CIDR
+        AlphaPrivateSubnet3CIDR: !Ref AlphaPrivateSubnet3CIDR
+        BravoPublicSubnet1CIDR: !Ref BravoPublicSubnet1CIDR
+        BravoPublicSubnet2CIDR: !Ref BravoPublicSubnet2CIDR
+        BravoPublicSubnet3CIDR: !Ref BravoPublicSubnet3CIDR
+        BravoPrivateSubnet1CIDR: !Ref BravoPrivateSubnet1CIDR
+        BravoPrivateSubnet2CIDR: !Ref BravoPrivateSubnet2CIDR
+        BravoPrivateSubnet3CIDR: !Ref BravoPrivateSubnet3CIDR
+        AvailabilityZone1: !Ref AvailabilityZone1
+        AvailabilityZone2: !Ref AvailabilityZone2
+        AvailabilityZone3: !Ref AvailabilityZone3
+
+  SecurityStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateBaseURL}/security.yaml"
+      Parameters:
+        AlphaVPCID: !GetAtt NetworkingStack.Outputs.AlphaVPCID
+        BravoVPCID: !GetAtt NetworkingStack.Outputs.BravoVPCID
+        AlphaVPCCIDR: !Ref AlphaVPCCIDR
+        BravoVPCCIDR: !Ref BravoVPCCIDR
+        AlphaPublicSubnet1ID: !GetAtt NetworkingStack.Outputs.AlphaPublicSubnet1ID
+        AlphaPublicSubnet2ID: !GetAtt NetworkingStack.Outputs.AlphaPublicSubnet2ID
+        AlphaPublicSubnet3ID: !GetAtt NetworkingStack.Outputs.AlphaPublicSubnet3ID
+        AlphaPrivateSubnet1ID: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet1ID
+        AlphaPrivateSubnet2ID: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet2ID
+        AlphaPrivateSubnet3ID: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet3ID
+        BravoPublicSubnet1ID: !GetAtt NetworkingStack.Outputs.BravoPublicSubnet1ID
+        BravoPublicSubnet2ID: !GetAtt NetworkingStack.Outputs.BravoPublicSubnet2ID
+        BravoPublicSubnet3ID: !GetAtt NetworkingStack.Outputs.BravoPublicSubnet3ID
+        BravoPrivateSubnet1ID: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet1ID
+        BravoPrivateSubnet2ID: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet2ID
+        BravoPrivateSubnet3ID: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet3ID
+
+  EndpointsStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateBaseURL}/endpoints.yaml"
+      Parameters:
+        AlphaVPCID: !GetAtt NetworkingStack.Outputs.AlphaVPCID
+        BravoVPCID: !GetAtt NetworkingStack.Outputs.BravoVPCID
+        AlphaPrivateSubnet1ID: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet1ID
+        AlphaPrivateSubnet2ID: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet2ID
+        AlphaPrivateSubnet3ID: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet3ID
+        BravoPrivateSubnet1ID: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet1ID
+        BravoPrivateSubnet2ID: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet2ID
+        BravoPrivateSubnet3ID: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet3ID
+        AlphaPrivateRouteTableID: !GetAtt NetworkingStack.Outputs.AlphaPrivateRouteTableID
+        BravoPrivateRouteTableID: !GetAtt NetworkingStack.Outputs.BravoPrivateRouteTableID
+
+  ComputeStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub "${TemplateBaseURL}/compute.yaml"
+      Parameters:
+        AlphaVPCID: !GetAtt NetworkingStack.Outputs.AlphaVPCID
+        BravoVPCID: !GetAtt NetworkingStack.Outputs.BravoVPCID
+      TimeoutInMinutes: 30
+
+Outputs:
+  # VPC Outputs
+  AlphaVPCID:
+    Description: ID of the Alpha VPC
+    Value: !GetAtt NetworkingStack.Outputs.AlphaVPCID
+
+  BravoVPCID:
+    Description: ID of the Bravo VPC
+    Value: !GetAtt NetworkingStack.Outputs.BravoVPCID
+
+  # Subnet Outputs for Alpha
+  AlphaPublicSubnet1ID:
+    Description: ID of the Alpha Public Subnet 1
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPublicSubnet1ID
+
+  AlphaPublicSubnet2ID:
+    Description: ID of the Alpha Public Subnet 2
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPublicSubnet2ID
+      
+  AlphaPublicSubnet3ID:
+    Description: ID of the Alpha Public Subnet 3
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPublicSubnet3ID
+
+  AlphaPrivateSubnet1ID:
+    Description: ID of the Alpha Private Subnet 1
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet1ID
+
+  AlphaPrivateSubnet2ID:
+    Description: ID of the Alpha Private Subnet 2
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet2ID
+
+  AlphaPrivateSubnet3ID:
+    Description: ID of the Alpha Private Subnet 3
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPrivateSubnet3ID
+
+  # Subnet Outputs for Bravo
+  BravoPublicSubnet1ID:
+    Description: ID of the Bravo Public Subnet 1
+    Value: !GetAtt NetworkingStack.Outputs.BravoPublicSubnet1ID
+
+  BravoPublicSubnet2ID:
+    Description: ID of the Bravo Public Subnet 2
+    Value: !GetAtt NetworkingStack.Outputs.BravoPublicSubnet2ID
+      
+  BravoPublicSubnet3ID:
+    Description: ID of the Bravo Public Subnet 3
+    Value: !GetAtt NetworkingStack.Outputs.BravoPublicSubnet3ID
+
+  BravoPrivateSubnet1ID:
+    Description: ID of the Bravo Private Subnet 1
+    Value: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet1ID
+
+  BravoPrivateSubnet2ID:
+    Description: ID of the Bravo Private Subnet 2
+    Value: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet2ID
+
+  BravoPrivateSubnet3ID:
+    Description: ID of the Bravo Private Subnet 3
+    Value: !GetAtt NetworkingStack.Outputs.BravoPrivateSubnet3ID
+
+  # Route Table Outputs
+  AlphaPublicRouteTableID:
+    Description: ID of the Alpha Public Route Table
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPublicRouteTableID
+
+  AlphaPrivateRouteTableID:
+    Description: ID of the Alpha Private Route Table
+    Value: !GetAtt NetworkingStack.Outputs.AlphaPrivateRouteTableID
+
+  BravoPublicRouteTableID:
+    Description: ID of the Bravo Public Route Table
+    Value: !GetAtt NetworkingStack.Outputs.BravoPublicRouteTableID
+
+  BravoPrivateRouteTableID:
+    Description: ID of the Bravo Private Route Table
+    Value: !GetAtt NetworkingStack.Outputs.BravoPrivateRouteTableID
+
+  # NAT Gateway Outputs
+  AlphaNatGatewayID:
+    Description: ID of the Alpha NAT Gateway
+    Value: !GetAtt NetworkingStack.Outputs.AlphaNatGateway1ID
+
+  BravoNatGatewayID:
+    Description: ID of the Bravo NAT Gateway
+    Value: !GetAtt NetworkingStack.Outputs.BravoNatGateway1ID
+
+  # Transit Gateway ID
+  TransitGatewayID:
+    Description: ID of the Transit Gateway
+    Value: !GetAtt NetworkingStack.Outputs.TransitGatewayID
+
+  # Security Group Outputs
+  CommonSecurityGroupID:
+    Description: ID of the Common Security Group
+    Value: !GetAtt SecurityStack.Outputs.CommonSecurityGroupID
+
+  AlphaSecurityGroupID:
+    Description: ID of the Alpha Security Group
+    Value: !GetAtt SecurityStack.Outputs.AlphaEC2SG
+
+  BravoSecurityGroupID:
+    Description: ID of the Bravo Security Group
+    Value: !GetAtt SecurityStack.Outputs.BravoEC2SG
+
+  # SSM IAM Role Outputs
+  SSMRoleArn:
+    Description: ARN of the SSM Instance Role
+    Value: !GetAtt ComputeStack.Outputs.SSMRoleArn
+
+  SSMInstanceProfileArn:
+    Description: ARN of the SSM Instance Profile
+    Value: !GetAtt ComputeStack.Outputs.SSMInstanceProfileArn
+  
+  SSMInstanceProfileName:
+    Description: Name of the SSM Instance Profile
+    Value: !GetAtt ComputeStack.Outputs.SSMInstanceProfileName 
